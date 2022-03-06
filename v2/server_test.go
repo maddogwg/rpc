@@ -29,8 +29,9 @@ func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1
 	return nil
 }
 
-func (t *Service1) MultiplyWithHeaders(r *http.Request, req *Service1Request, res *Service1Response, w http.ResponseWriter) error {
-	http.SetCookie(w, &http.Cookie{Name: "mycookie", Value: "delicious"})
+func (t *Service1) MultiplyWithHeaders(r *http.Request, req *Service1Request, res *Service1Response, header http.Header) error {
+	cookie := http.Cookie{Name: "mycookie", Value: "delicious"}
+	header.Add("Set-Cookie", cookie.String())
 	res.Result = req.A * req.B
 	return nil
 }

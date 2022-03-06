@@ -17,9 +17,9 @@ import (
 
 var (
 	// Precompute reflect.Type of error, http.Request and http.ResponseWriter
-	typeOfError          = reflect.TypeOf((*error)(nil)).Elem()
-	typeOfRequest        = reflect.TypeOf((*http.Request)(nil)).Elem()
-	typeOfResponseWriter = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+	typeOfError   = reflect.TypeOf((*error)(nil)).Elem()
+	typeOfRequest = reflect.TypeOf((*http.Request)(nil)).Elem()
+	typeOfHeader  = reflect.TypeOf((*http.Header)(nil)).Elem()
 )
 
 // ----------------------------------------------------------------------------
@@ -29,8 +29,8 @@ var (
 type MethodClass int
 
 const (
-	MethodClassBase        MethodClass = iota // base method
-	MethodClassWithHeaders                    // method with headers argument
+	MethodClassBase       MethodClass = iota // base method
+	MethodClassWithHeader                    // method with header argument
 )
 
 type service struct {
@@ -87,9 +87,9 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		}
 		// Method must have either four or five ins.
 		// MethodClassBase: receiver, *http.Request, *args, *reply
-		// MethodClassWithHeaders adds: http.ResponseWriter
+		// MethodClassWithHeader adds: http.Header
 		if mtype.NumIn() == 5 {
-			class = MethodClassWithHeaders
+			class = MethodClassWithHeader
 		} else if mtype.NumIn() != 4 {
 			continue
 		}
@@ -108,10 +108,10 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		if reply.Kind() != reflect.Ptr || !isExportedOrBuiltin(reply) {
 			continue
 		}
-		if class == MethodClassWithHeaders {
-			// Fourth argument must be http.ResponseWriter interface.
-			rwType := mtype.In(4)
-			if rwType.Kind() != reflect.Interface || rwType != typeOfResponseWriter {
+		if class == MethodClassWithHeader {
+			// Fourth argument must be http.Header interface.
+			hdrType := mtype.In(4)
+			if hdrType.Kind() != reflect.Map || hdrType != typeOfHeader {
 				continue
 			}
 		}

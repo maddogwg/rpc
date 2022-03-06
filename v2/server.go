@@ -217,13 +217,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// If still no errors after validation, call the method
 	if errValue[0].IsNil() {
-		if methodSpec.class == MethodClassWithHeaders {
+		if methodSpec.class == MethodClassWithHeader {
 			errValue = methodSpec.method.Func.Call([]reflect.Value{
 				serviceSpec.rcvr,
 				reflect.ValueOf(r),
 				args,
 				reply,
-				reflect.ValueOf(w),
+				reflect.ValueOf(w.Header()),
 			})
 		} else {
 			errValue = methodSpec.method.Func.Call([]reflect.Value{
