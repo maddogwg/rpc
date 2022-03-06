@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	// Precompute the reflect.Type of error and http.Request
-	typeOfError   = reflect.TypeOf((*error)(nil)).Elem()
-	typeOfRequest = reflect.TypeOf((*http.Request)(nil)).Elem()
+	// Precompute reflect.Type of error, http.Request and http.ResponseWriter
+	typeOfError          = reflect.TypeOf((*error)(nil)).Elem()
+	typeOfRequest        = reflect.TypeOf((*http.Request)(nil)).Elem()
+	typeOfResponseWriter = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
 )
 
 // ----------------------------------------------------------------------------
@@ -75,8 +76,8 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		if method.PkgPath != "" {
 			continue
 		}
-		// Method needs four ins: receiver, *http.Request, *args, *reply.
-		if mtype.NumIn() != 4 {
+		// Method needs five ins: receiver, *http.Request, *args, *reply. http.ResponseWriter
+		if mtype.NumIn() != 5 {
 			continue
 		}
 		// First argument must be a pointer and must be http.Request.
@@ -92,6 +93,11 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		// Third argument must be a pointer and must be exported.
 		reply := mtype.In(3)
 		if reply.Kind() != reflect.Ptr || !isExportedOrBuiltin(reply) {
+			continue
+		}
+		// Fourth argument must be http.ResponseWriter interface.
+		rwType := mtype.In(4)
+		if rwType.Kind() != reflect.Interface || rwType != typeOfResponseWriter {
 			continue
 		}
 		// Method needs one out: error.

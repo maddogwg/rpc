@@ -24,7 +24,8 @@ type Service1Response struct {
 type Service1 struct {
 }
 
-func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1Response) error {
+func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1Response, w http.ResponseWriter) error {
+	http.SetCookie(w, &http.Cookie{Name: "mycookie", Value: "delicious"})
 	res.Result = req.A * req.B
 	return nil
 }
@@ -134,6 +135,10 @@ func TestServeHTTP(t *testing.T) {
 	s.ServeHTTP(w, r)
 	if w.Status != 200 {
 		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	hval := w.header.Get("Set-Cookie")
+	if hval != "mycookie=delicious" {
+		t.Errorf("HTT header Set-Cookie was %s, should be mycookie=delicious", hval)
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))

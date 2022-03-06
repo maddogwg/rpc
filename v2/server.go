@@ -222,6 +222,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reflect.ValueOf(r),
 			args,
 			reply,
+			reflect.ValueOf(w),
 		})
 	}
 
