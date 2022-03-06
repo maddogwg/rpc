@@ -24,7 +24,12 @@ type Service1Response struct {
 type Service1 struct {
 }
 
-func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1Response, w http.ResponseWriter) error {
+func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1Response) error {
+	res.Result = req.A * req.B
+	return nil
+}
+
+func (t *Service1) MultiplyWithHeaders(r *http.Request, req *Service1Request, res *Service1Response, w http.ResponseWriter) error {
 	http.SetCookie(w, &http.Cookie{Name: "mycookie", Value: "delicious"})
 	res.Result = req.A * req.B
 	return nil
@@ -41,13 +46,21 @@ func TestRegisterService(t *testing.T) {
 
 	// Inferred name.
 	err = s.RegisterService(service1, "")
-	if err != nil || !s.HasMethod("Service1.Multiply") {
+	if err != nil {
+		t.Errorf("Expected to be registered: Service1")
+	} else if !s.HasMethod("Service1.Multiply") {
 		t.Errorf("Expected to be registered: Service1.Multiply")
+	} else if !s.HasMethod("Service1.MultiplyWithHeaders") {
+		t.Errorf("Expected to be registered: Service1.MultiplyWithHeaders")
 	}
 	// Provided name.
 	err = s.RegisterService(service1, "Foo")
-	if err != nil || !s.HasMethod("Foo.Multiply") {
+	if err != nil {
+		t.Errorf("Expected to be registered: Service1 as Foo")
+	} else if !s.HasMethod("Foo.Multiply") {
 		t.Errorf("Expected to be registered: Foo.Multiply")
+	} else if !s.HasMethod("Foo.MultiplyWithHeaders") {
+		t.Errorf("Expected to be registered: Foo.MultiplyWithHeaders")
 	}
 	// No methods.
 	err = s.RegisterService(service2, "")
@@ -61,16 +74,17 @@ type MockCodec struct {
 	A, B int
 }
 
-func (c MockCodec) NewRequest(*http.Request) CodecRequest {
-	return MockCodecRequest{c.A, c.B}
+func (c MockCodec) NewRequest(r *http.Request) CodecRequest {
+	return MockCodecRequest{c.A, c.B, r.URL.Path}
 }
 
 type MockCodecRequest struct {
-	A, B int
+	A, B   int
+	method string
 }
 
 func (r MockCodecRequest) Method() (string, error) {
-	return "Service1.Multiply", nil
+	return r.method, nil
 }
 
 func (r MockCodecRequest) ReadRequest(args interface{}) error {
@@ -126,7 +140,7 @@ func TestServeHTTP(t *testing.T) {
 	s := NewServer()
 	s.RegisterService(new(Service1), "")
 	s.RegisterCodec(MockCodec{A, B}, "mock")
-	r, err := http.NewRequest("POST", "", nil)
+	r, err := http.NewRequest("POST", "Service1.Multiply", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,10 +149,6 @@ func TestServeHTTP(t *testing.T) {
 	s.ServeHTTP(w, r)
 	if w.Status != 200 {
 		t.Errorf("Status was %d, should be 200.", w.Status)
-	}
-	hval := w.header.Get("Set-Cookie")
-	if hval != "mycookie=delicious" {
-		t.Errorf("HTT header Set-Cookie was %s, should be mycookie=delicious", hval)
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
@@ -164,6 +174,25 @@ func TestServeHTTP(t *testing.T) {
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+
+	// Test method that sets headers
+	r, err = http.NewRequest("POST", "Service1.MultiplyWithHeaders", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w = NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+	hval := w.header.Get("Set-Cookie")
+	if hval != "mycookie=delicious" {
+		t.Errorf("HTT header Set-Cookie was %s, should be mycookie=delicious", hval)
 	}
 }
 
@@ -192,7 +221,7 @@ func TestInterception(t *testing.T) {
 		}
 	})
 
-	r, err := http.NewRequest("POST", "", nil)
+	r, err := http.NewRequest("POST", "Service1.Multiply", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +250,7 @@ func TestValidationSuccessful(t *testing.T) {
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterValidateRequestFunc(validate)
 
-	r, err := http.NewRequest("POST", "", nil)
+	r, err := http.NewRequest("POST", "Service1.Multiply", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +281,7 @@ func TestValidationFails(t *testing.T) {
 	s.RegisterCodec(MockCodec{1, 2}, "mock")
 	s.RegisterValidateRequestFunc(validate)
 
-	r, err := http.NewRequest("POST", "", nil)
+	r, err := http.NewRequest("POST", "Service1.Multiply", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

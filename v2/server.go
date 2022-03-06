@@ -217,13 +217,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// If still no errors after validation, call the method
 	if errValue[0].IsNil() {
-		errValue = methodSpec.method.Func.Call([]reflect.Value{
-			serviceSpec.rcvr,
-			reflect.ValueOf(r),
-			args,
-			reply,
-			reflect.ValueOf(w),
-		})
+		if methodSpec.class == MethodClassWithHeaders {
+			errValue = methodSpec.method.Func.Call([]reflect.Value{
+				serviceSpec.rcvr,
+				reflect.ValueOf(r),
+				args,
+				reply,
+				reflect.ValueOf(w),
+			})
+		} else {
+			errValue = methodSpec.method.Func.Call([]reflect.Value{
+				serviceSpec.rcvr,
+				reflect.ValueOf(r),
+				args,
+				reply,
+			})
+		}
 	}
 
 	// Extract the result to error if needed.

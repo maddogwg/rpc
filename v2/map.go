@@ -26,6 +26,13 @@ var (
 // service
 // ----------------------------------------------------------------------------
 
+type MethodClass int
+
+const (
+	MethodClassBase        MethodClass = iota // base method
+	MethodClassWithHeaders                    // method with headers argument
+)
+
 type service struct {
 	name     string                    // name of service
 	rcvr     reflect.Value             // receiver of methods for the service
@@ -34,6 +41,7 @@ type service struct {
 }
 
 type serviceMethod struct {
+	class     MethodClass    // method class
 	method    reflect.Method // receiver method
 	argsType  reflect.Type   // type of the request argument
 	replyType reflect.Type   // type of the response argument
@@ -72,12 +80,17 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 	for i := 0; i < s.rcvrType.NumMethod(); i++ {
 		method := s.rcvrType.Method(i)
 		mtype := method.Type
+		class := MethodClassBase
 		// Method must be exported.
 		if method.PkgPath != "" {
 			continue
 		}
-		// Method needs five ins: receiver, *http.Request, *args, *reply. http.ResponseWriter
-		if mtype.NumIn() != 5 {
+		// Method must have either four or five ins.
+		// MethodClassBase: receiver, *http.Request, *args, *reply
+		// MethodClassWithHeaders adds: http.ResponseWriter
+		if mtype.NumIn() == 5 {
+			class = MethodClassWithHeaders
+		} else if mtype.NumIn() != 4 {
 			continue
 		}
 		// First argument must be a pointer and must be http.Request.
@@ -95,10 +108,12 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		if reply.Kind() != reflect.Ptr || !isExportedOrBuiltin(reply) {
 			continue
 		}
-		// Fourth argument must be http.ResponseWriter interface.
-		rwType := mtype.In(4)
-		if rwType.Kind() != reflect.Interface || rwType != typeOfResponseWriter {
-			continue
+		if class == MethodClassWithHeaders {
+			// Fourth argument must be http.ResponseWriter interface.
+			rwType := mtype.In(4)
+			if rwType.Kind() != reflect.Interface || rwType != typeOfResponseWriter {
+				continue
+			}
 		}
 		// Method needs one out: error.
 		if mtype.NumOut() != 1 {
@@ -108,6 +123,7 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 			continue
 		}
 		s.methods[method.Name] = &serviceMethod{
+			class:     class,
 			method:    method,
 			argsType:  args.Elem(),
 			replyType: reply.Elem(),
